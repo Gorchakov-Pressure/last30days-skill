@@ -18,7 +18,8 @@ def test_missing_binary_yields_an_install_prescription(monkeypatch):
     monkeypatch.setattr(health, "_off_path_binary", lambda name: None)
     probe = health.probe_dependency("grok")
     assert probe.status == health.MISSING
-    assert probe.prescription and not probe.off_path
+    assert probe.prescription == health._prescription("grok", "install")[0]
+    assert not probe.off_path
     assert "reinstall" not in probe.prescription.lower()
 
 
@@ -44,14 +45,32 @@ def test_broken_binary_yields_a_reinstall_prescription(monkeypatch):
     monkeypatch.setattr(health.subproc, "run_with_timeout", boom)
     probe = health.probe_dependency("grok")
     assert probe.status == health.BROKEN
-    assert "reinstall" in probe.prescription.lower()
+    assert probe.prescription == health._prescription("grok", "reinstall")[0]
 
 
-def test_fallback_prescription_names_the_official_installer():
-    install, reinstall = health._FALLBACK_PRESCRIPTIONS["grok"]
-    assert "x.ai/cli/install.sh" in install
-    assert "grok login" in install
-    assert "reinstall" in reinstall.lower()
+def test_grok_install_policy_is_manual_with_or_without_npm(monkeypatch):
+    for npm in (None, "/usr/bin/npm"):
+        monkeypatch.setattr(health.shutil, "which", lambda name: npm if name == "npm" else None)
+        for kind in ("install", "reinstall"):
+            text, manager = health._prescription("grok", kind)
+            assert text == health._FALLBACK_PRESCRIPTIONS["grok"][kind == "reinstall"]
+            assert manager == ""
+            for required in ("manually", "pinned", "operator consent", "independently verified authenticity", "stop if unverifiable"):
+                assert required in text
+            assert "curl" not in text and "npm" not in text
+
+
+def test_timeout_keeps_manual_reinstall_policy(monkeypatch):
+    monkeypatch.setattr(health.shutil, "which", lambda name: "/usr/bin/grok")
+
+    def timeout(*args, **kwargs):
+        raise health.subproc.SubprocTimeout("timeout")
+
+    monkeypatch.setattr(health.subproc, "run_with_timeout", timeout)
+    probe = health._probe_dependency_uncached("grok", 1)
+    assert probe.status == health.TIMEOUT
+    assert health._prescription("grok", "reinstall")[0] in probe.prescription
+    assert probe.owner_pkg_manager == ""
 
 
 def test_registry_covers_missing_and_unauthenticated():
@@ -72,3 +91,17 @@ def test_new_entries_carry_no_secret_looking_values():
         entry = prescriptions.REGISTRY[key]
         blob = f"{entry.cause} {entry.fix_nl} {entry.fix_cli}"
         assert "AUTH_TOKEN=" not in blob and "API_KEY=" not in blob
+
+
+def test_failed_grok_dependency_is_nl_only_in_doctor():
+    from lib import doctor
+
+    for state, kind in ((health.MISSING, "install"), (health.BROKEN, "reinstall"), (health.TIMEOUT, "reinstall")):
+        text = health._prescription("grok", kind)[0]
+        probe = health.DependencyProbe("grok", state, prescription=text)
+        entry = prescriptions.for_dependency_probe(probe)
+        assert entry.fix_cli == ""
+        assert entry.fix_nl == text
+        assert doctor._fix_text(entry) == text
+    off_path = health.DependencyProbe("grok", health.MISSING, prescription="add /example/bin to PATH", off_path=True)
+    assert prescriptions.for_dependency_probe(off_path).fix_cli == off_path.prescription

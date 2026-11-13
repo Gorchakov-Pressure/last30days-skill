@@ -184,15 +184,6 @@ _MANAGER_PRESCRIPTIONS: Dict[str, Dict[str, Tuple[str, str]]] = {
         "brew": ("brew install ffmpeg", "brew reinstall ffmpeg"),
         "apt": ("sudo apt-get install -y ffmpeg", "sudo apt-get install -y --reinstall ffmpeg"),
     },
-    # The official installer is the primary path; npm is a real alternative
-    # (the package is published as @xai-official/grok) and fits the existing
-    # manager-preference machinery.
-    "grok": {
-        "npm": (
-            "npm install -g @xai-official/grok",
-            "reinstall the Grok CLI: npm install -g @xai-official/grok@latest",
-        ),
-    },
 }
 
 # Last-resort prescriptions when no known package manager is detected.
@@ -210,8 +201,10 @@ _FALLBACK_PRESCRIPTIONS: Dict[str, Tuple[str, str]] = {
         "reinstall ffmpeg (https://ffmpeg.org/download.html); the current binary won't run",
     ),
     "grok": (
-        "install the Grok CLI: curl -fsSL https://x.ai/cli/install.sh | bash, then run `grok login`",
-        "reinstall the Grok CLI: curl -fsSL https://x.ai/cli/install.sh | bash; the current binary won't run",
+        "manually install a pinned Grok CLI release from https://x.ai/cli only with operator consent "
+        "and independently verified authenticity; stop if unverifiable. Ensure it is on PATH, then run `grok login`",
+        "manually reinstall a pinned Grok CLI release from https://x.ai/cli only with operator consent "
+        "and independently verified authenticity; stop if unverifiable. The current binary won't run",
     ),
 }
 
@@ -222,7 +215,7 @@ class DependencyProbe:
 
     ``status`` is one of the module-level constants (OK/MISSING/BROKEN/TIMEOUT).
     ``detail`` says what was observed (version string, exec error, off-PATH
-    location). ``prescription`` is the copy-pasteable fix, empty when OK.
+    location). ``prescription`` is repair guidance (manual for Grok), empty when OK.
     ``owner_pkg_manager`` names the manager the prescription targets
     ("brew", "pipx", "apt", "nvm", "npx"), or "" for PATH fixes / fallbacks.
     """
