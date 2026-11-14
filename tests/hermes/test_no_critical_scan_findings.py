@@ -1,17 +1,6 @@
-"""Regression guard: the Hermes install-time scanner must find zero CRITICAL.
+"""Historical seven-pattern text regression, not the current native Hermes scanner.
 
-Hermes (NousResearch/hermes-agent, tools/skills_guard.py) blocks community-tier
-installs on a `dangerous` verdict, which any single CRITICAL finding produces.
-Issue #513 was caused by 14 CRITICAL false positives; the fix removed them so the
-verdict is `caution` (--force installable). This test replicates the scanner's
-CRITICAL-severity regexes exactly and asserts none match in the scanned subtree,
-so a future edit that reintroduces a blocking pattern fails CI instead of
-silently re-blocking every Hermes user.
-
-This is a self-contained replica (no Hermes dependency). The rule regexes below
-are copied verbatim from skills_guard.py's THREAT_PATTERNS; keep them in sync if
-Hermes changes them. HIGH/MEDIUM findings are intentionally NOT checked here --
-they do not gate the `caution` verdict (see docs/plans hermes-scan plan).
+This limited snapshot does not establish a verdict or installation permission.
 """
 from __future__ import annotations
 
@@ -33,8 +22,7 @@ CRITICAL_RULES = [
     (r'do\s+not\s+(?:\w+\s+)*tell\s+(?:\w+\s+)*the\s+user', "deception_hide"),
 ]
 
-# Scan-root .skillignore excludes (directory prefixes + explicit files). Mirrors
-# skills/last30days/.skillignore so this test scans exactly what Hermes scans.
+# Historical exclusions for this seven-pattern regression only.
 IGNORE_DIRS = ("assets/", "agents/", "scripts/lib/vendor/")
 IGNORE_FILES = {
     "scripts/build-skill.sh", "scripts/compare.sh", "scripts/evaluate_search_quality.py",
@@ -68,6 +56,20 @@ def test_zero_critical_scanner_findings():
                 if rx.search(line):
                     hits.append(f"{name}  {rel}:{i}  {line.strip()[:90]}")
     assert not hits, (
-        "Hermes scanner CRITICAL patterns reappeared in the scanned subtree "
-        "(this re-blocks every community install). Findings:\n  " + "\n  ".join(hits)
+        "Historical patterns reappeared. Findings:\n  " + "\n  ".join(hits)
     )
+
+
+def test_no_known_unsafe_grok_install_recommendations():
+    """Specific advice regression across source/docs, without scanner exclusions."""
+    root = SKILL_ROOT.parents[1]
+    paths = [p for p in SKILL_ROOT.rglob("*")
+             if p.is_file() and p.suffix in {".py", ".md", ".js", ".mjs", ".sh", ".json"}]
+    paths += list((root / "docs").rglob("*.md")) + list(root.glob("README*.md"))
+    paths += [root / "CONFIGURATION.md", root / "HERMES_SETUP.md"]
+    remote_script = "https://x.ai/cli/" + "install.sh"
+    unpinned_npm = re.compile(r"npm\s+(?:i|install)\s+-g\s+@xai-official/grok(?:@latest)?(?:[\s)`\"']|$)")
+    for path in paths:
+        text = path.read_text(encoding="utf-8")
+        assert remote_script not in text, str(path)
+        assert not unpinned_npm.search(text), str(path)

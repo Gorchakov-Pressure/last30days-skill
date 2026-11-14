@@ -53,7 +53,8 @@ class Prescription:
     """Remediation for one (source, failure mode).
 
     ``fix_nl`` is the natural-language form ("ask the agent to run setup
-    with browser-cookie consent"); ``fix_cli`` is the exact command.
+    with browser-cookie consent"); ``fix_cli`` is the exact command, empty
+    for manual Grok installation.
     ``alt_cli`` carries per-platform alternates (Windows/pip) when the
     primary CLI form is macOS/brew. ``anchor`` is a CONFIGURATION.md
     heading anchor ("" when the doc has no dedicated section).
@@ -132,11 +133,8 @@ REGISTRY: Dict[Tuple[str, str], Prescription] = dict((
     _entry(
         "x", "grok_cli_missing",
         cause="the Grok CLI is not installed, so the keyless X path is unavailable",
-        fix_nl=(
-            "install the Grok CLI (curl -fsSL https://x.ai/cli/install.sh | bash) "
-            "and sign in with `grok login` to search X without any X credential"
-        ),
-        fix_cli="npm install -g @xai-official/grok",
+        fix_nl=health._prescription("grok", "install")[0],
+        fix_cli="",
         anchor="api-keys-env",
     ),
     _entry(
@@ -428,6 +426,14 @@ def for_dependency_probe(probe: health.DependencyProbe) -> Optional[Prescription
     """
     if probe.ok:
         return None
+    if probe.name == "grok" and not probe.off_path:
+        return Prescription(
+            source="grok",
+            failure=probe.status,
+            cause=probe.detail or f"grok: {probe.status}",
+            fix_nl=probe.prescription,
+            fix_cli="",
+        )
     key = _dependency_failure(probe)
     entry = REGISTRY.get(key) if key else None
     if entry is None:

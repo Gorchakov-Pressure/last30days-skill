@@ -190,7 +190,7 @@ The magic of /last30days is Reddit comments + X posts together - and both are fr
 
 **X/Twitter (pick one - the most important source):**
 - `X_BEARER_TOKEN=xxx` - the official X API v2 (`api.x.com`) with an app-only bearer from the X developer console. Recent posts, about a week back on the Basic tier, unless your X developer project has full-archive access. Persist it with `setup --store-key X_BEARER_TOKEN` (value on stdin, masked in output). Outside a Grok Bot host also add `LAST30DAYS_X_BACKEND=xapi` so the engine selects it (`doctor` says so when the bearer is set without it).
-- **Grok CLI (no X credential):** install with `curl -fsSL https://x.ai/cli/install.sh | bash`, then `grok login`. No X account, no cookies, no API key. Needs a Grok plan; calls draw on it.
+- **Grok CLI:** paid Grok plan (calls use it); no X account/cookies/API key. Manual-only pinned release: https://x.ai/cli. Before installation: operator consent and independently verified authenticity; STOP if unverifiable. Agent PATH, then `grok login`.
 - `FROM_BROWSER=auto` - free. Reads your x.com login cookies live at search time: Firefox and Safari first, then Chromium browsers on macOS; Firefox only on Windows and Linux, with a Windows Firefox fallback under WSL. Cookie values are never saved to disk. Chromium reads may prompt for macOS Keychain access again; choose Always Allow for continuing OS access. A saved `BROWSER_CONSENT=false` blocks these reads until you consent again. Set `BROWSER_CONSENT=false` or `FROM_BROWSER=off` to disable native, CDP, and sidecar reads.
 - `XAI_API_KEY=xxx` - no browser access needed. Get a key at api.x.ai. Best for servers.
 - `XQUIK_API_KEY=xxx` - keyless-style X via Xquik.
@@ -249,6 +249,6 @@ The magic of /last30days is Reddit comments + X posts together - and both are fr
 
 Always add this last line: `SETUP_COMPLETE=true`. Then proceed to research.
 
-The setup wizard's mechanical work lives in a Python module so it runs across all hosts (Claude Code, Codex, Cursor, etc.) while you drive the consent conversation above. The common-case (already set up) path through this file stays short.
+The Python setup module handles mechanical work across hosts; you drive consent above. The already-configured path stays short.
 
 ---

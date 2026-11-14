@@ -252,6 +252,6 @@ After the response and required citations, stop and wait unless governing instru
 - TikTok and Instagram sources require SCRAPECREATORS_API_KEY (10,000 free calls, then PAYG). With the key set, Reddit spends ScrapeCreators credits on search backfill when the free path returns fewer than 5 items (default); `LAST30DAYS_REDDIT_SC_MIN_ITEMS=0` limits that to empty runs, and `LAST30DAYS_REDDIT_BACKEND=scrapecreators` makes ScrapeCreators primary.
 - Agent hosts invoke the slash-command skill contract; if `--agent` appears in the user's slash-command arguments, treat it as skill-level mode guidance, not a Python CLI flag.
 
-**Bundled scripts:** `scripts/last30days.py` (main research engine), `scripts/lib/` (search, enrichment, rendering modules), `scripts/lib/vendor/bird-search/` (vendored X search client, MIT licensed)
+**Bundled scripts:** `scripts/last30days.py` (engine), `scripts/lib/health.py` + sibling modules, `scripts/lib/vendor/bird-search/bird-search.mjs` + siblings/license (MIT). Retain the entire bundle.
 
 Review scripts before first use to verify behavior.

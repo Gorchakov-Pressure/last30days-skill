@@ -1156,3 +1156,17 @@ class TestSummaryWording:
     def test_conditional_summary_is_the_conditional_wording(self):
         res = backends.resolve("reddit", {"SCRAPECREATORS_API_KEY": "dummy-key"})
         assert res.summary == res.conditional
+
+
+def test_grok_missing_backend_reuses_manual_health_policy():
+    with _stack(_x_env()):
+        finding = backends._probe_grok({})
+    assert finding.status == health.MISSING
+    assert finding.prescription == health._prescription("grok", "install")[0]
+    with _stack(_x_env(grok_installed=True)):
+        finding = backends._probe_grok({})
+    assert finding.prescription == "grok login"
+    with _stack(_x_env(grok_off_path="/example/bin/grok")):
+        finding = backends._probe_grok({})
+    assert "PATH" in finding.prescription
+    assert "manually" not in finding.prescription
