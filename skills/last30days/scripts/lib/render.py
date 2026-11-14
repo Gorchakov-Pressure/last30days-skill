@@ -21,6 +21,7 @@ from . import (
     jobs_digest,
     library_index,
     meta_ads,
+    patent_digest,
     polymarket,
     registers,
     relevance,
@@ -907,6 +908,10 @@ def render_compact(
     if jobs_digest_block:
         lines.extend(jobs_digest_block)
         lines.append("")
+    patent_block = _patent_digest_block(evidence_report)
+    if patent_block:
+        lines.extend(patent_block)
+        lines.append("")
     market_block = _render_market_data(report)
     if market_block:
         lines.extend(market_block)
@@ -1098,6 +1103,7 @@ def render_for_html_comparison(
     # Comparison data quality notes also go to stderr, not into the artifact.
     _append_html_footer(
         lines, main_report, save_path, market_windows=_market_windows(entity_reports),
+        comparison=True,
     )
     return "\n".join(lines).strip() + "\n"
 
@@ -1207,8 +1213,11 @@ def _append_html_footer(
     save_path: str | None,
     *,
     market_windows: list[dict] | None = None,
+    comparison: bool = False,
 ) -> None:
-    footer = _render_emoji_footer(report, save_path, market_windows=market_windows)
+    footer = _render_emoji_footer(
+        report, save_path, market_windows=market_windows, comparison=comparison,
+    )
     _append_pass_through_footer(lines, footer)
 
 
@@ -1494,7 +1503,7 @@ def render_comparison_multi(
     lines.extend(scaffold)
 
     footer = _render_emoji_footer(
-        main_report, save_path, market_windows=_market_windows(entity_reports),
+        main_report, save_path, market_windows=_market_windows(entity_reports), comparison=True,
     )
     _append_pass_through_footer(lines, footer)
 
@@ -1827,6 +1836,10 @@ def render_full(report: schema.Report, save_path: str | None = None) -> str:
     jobs_digest_block, _digest_urls = _jobs_digest_block(evidence_report)
     if jobs_digest_block:
         lines.extend(jobs_digest_block)
+        lines.append("")
+    patent_block = _patent_digest_block(evidence_report)
+    if patent_block:
+        lines.extend(patent_block)
         lines.append("")
 
     # ALL clusters (no limit)
@@ -2552,6 +2565,61 @@ def _jobs_digest_block(report: schema.Report) -> tuple[list[str], set[str]]:
     return out, shown
 
 
+def _patent_digest_block(report: schema.Report) -> list[str]:
+    """The ``## Patent Digest`` section from the run's ``patents`` artifact:
+    the lines ``lib.patent_digest`` builds, with every title, name and passage
+    of patent office text passed through the engine's own escaping. Empty
+    when the run has no artifact or the artifact holds counts only."""
+
+    def link(url: str, title: str) -> str:
+        return _markdown_url_link(url, label=title) or _escape_markdown_plain_text(title)
+
+    return patent_digest.digest_lines(
+        (report.artifacts or {}).get("patents"),
+        link=link,
+        untrusted=_format_untrusted_evidence,
+    )
+
+
+def _patents_footer_line(report: schema.Report) -> str | None:
+    """Build the 📜 Patents footer line from the counts in the ``patents``
+    artifact, whether or not the run read any filing's text.
+
+    Applications published, patents granted and first US publications, all
+    under the company's own names; a ``+`` on each when the search stopped
+    short of its full count. When none is the company's own, all three are
+    those of the other filers with the company's name, and the line ends
+    ``filed as {name}`` so the reader can judge whose they are. Filings of the
+    company a person leads name it: ``📜 Patents at Tesla: ...``. None when
+    the run has no artifact.
+    """
+    artifact = (report.artifacts or {}).get("patents")
+    if not isinstance(artifact, dict) or artifact.get("status") not in {"digest", "counts-only"}:
+        return None
+    counts = artifact.get("counts")
+    if not isinstance(counts, dict):
+        return None
+    count, quantity = patent_digest.count, patent_digest.quantity
+    floor = bool(counts.get("floor"))
+    applications, grants = count(counts.get("applications")), count(counts.get("grants"))
+    first = count(counts.get("first_publications"))
+    filed_as = []
+    others = patent_digest.groups(artifact, patent_digest.NAME_MATCHED)
+    if others and not patent_digest.has_own_filings(artifact, counts):
+        applications = count(counts.get("name_matched_applications"))
+        grants = count(counts.get("name_matched_grants"))
+        first = count(counts.get("name_matched_first_publications"))
+        filed_as = ["filed as " + "; ".join(_footer_safe(group["name"], 60) for group in others)]
+    company = _footer_safe(artifact.get("company") or "", 60)
+    label = f"Patents at {company}" if artifact.get("company_via_person") and company else "Patents"
+    return " │ ".join([
+        f"📜 {label}: {quantity(applications, 'application', floor=floor)} published",
+        f"{grants:,}{'+' if floor else ''} granted",
+        quantity(first, "first US publication", floor=floor),
+        *filed_as,
+    ])
+
+
 def _render_candidate(
     candidate: schema.Candidate,
     prefix: str,
@@ -3255,11 +3323,13 @@ def _build_source_footer_lines(
     report: schema.Report,
     *,
     market_windows: list[dict] | None = None,
+    comparison: bool = False,
 ) -> list[str]:
     """Return emoji-tree lines for populated sources only (>=1 item).
 
     ``market_windows`` holds the price windows of every entity of a
-    comparison; left out, the report's own window is used.
+    comparison; left out, the report's own window is used. ``comparison``
+    leaves out the patents line, which describes one company only.
 
     Sources that returned zero items - clean NO_RESULTS or a failure - are
     omitted; their outcome still surfaces in the ## Source Coverage /
@@ -3325,6 +3395,10 @@ def _build_source_footer_lines(
     yahoo_finance_line = _yahoo_finance_footer_line(report, market_windows)
     if yahoo_finance_line:
         out.append(yahoo_finance_line)
+
+    patents_line = None if comparison else _patents_footer_line(report)
+    if patents_line:
+        out.append(patents_line)
 
     amazon_line = _amazon_footer_line(report)
     if amazon_line:
@@ -3795,6 +3869,7 @@ def _render_emoji_footer(
     save_path: str | None,
     *,
     market_windows: list[dict] | None = None,
+    comparison: bool = False,
 ) -> list[str]:
     """Produce the deterministic magic footer block.
 
@@ -3804,7 +3879,9 @@ def _render_emoji_footer(
     items but a save path exists, the banner and the 'Raw results saved to' line
     still render so the durable raw-file citation is never silently dropped.
     """
-    source_lines = _build_source_footer_lines(report, market_windows=market_windows)
+    source_lines = _build_source_footer_lines(
+        report, market_windows=market_windows, comparison=comparison,
+    )
     voices_line = _top_voices_footer_line(report)
     # The freshness verdict is computed for the report body, but a reader who
     # only scans this footer never sees it — and it is the one line that says

@@ -180,6 +180,7 @@ SOURCE_ORDER = (
     "pinterest",
     "xiaohongshu",
     "jobs",
+    "patents",
     "library",
 )
 
@@ -707,6 +708,15 @@ def _digg_record(config):
     probe = health.probe_dependency("digg-pp-cli")
     requires = "digg-pp-cli on the agent-subprocess PATH"
     if probe.ok:
+        if probe.outdated:
+            # Below the oldest release the engine can call, so its searches
+            # fail: degraded, with the pinned upgrade as the fix. The detail
+            # names both versions.
+            return _record(
+                status=health.DEGRADED, fix=probe.prescription,
+                note="digg-pp-cli is older than the engine can call; upgrade it",
+                detail=probe.detail, requires=requires,
+            )
         if digg.cli_searches_all_topics() is not False:
             # Current, or its help could not be read: nothing known to fix.
             return _record(status=health.OK, detail=probe.detail, requires=requires)
@@ -981,6 +991,21 @@ def _jobs_record(config):
     )
 
 
+def _patents_record(config):
+    """The patent digest. Like the share-price line it runs only for a topic
+    that is a company, and a company may have published nothing, so a quiet
+    run is the usual case; the note says so."""
+    return _record(
+        status="opt-in",
+        requires="none (public USPTO search); activates for company topics",
+        note=(
+            "on-demand source: no configuration needed; no patents line is "
+            "expected for topics that are not companies, for companies with "
+            "no filings in the window, or if USPTO starts requiring sign-in"
+        ),
+    )
+
+
 def _count_saved_briefs(memory_dir) -> int:
     """Cheap count of saved research briefs (directory listing, no file parse).
 
@@ -1060,6 +1085,7 @@ _SOURCE_BUILDERS: Dict[str, Callable[[Dict[str, Any]], Dict[str, Any]]] = {
     "pinterest": _pinterest_record,
     "xiaohongshu": _xiaohongshu_record,
     "jobs": _jobs_record,
+    "patents": _patents_record,
     "library": _library_record,
 }
 

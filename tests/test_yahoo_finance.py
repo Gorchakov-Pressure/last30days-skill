@@ -1223,10 +1223,40 @@ def test_host_ticker_makes_no_cli_call_when_the_lane_is_off(monkeypatch, config,
     assert fake.calls == []
     assert _footer(report) == []
     assert "yahoo_finance" not in report.artifacts
-    assert "yahoo_finance" not in report.source_status
     assert fields == {
         "ticker_source": "host", "ticker_rejected": [{"pair": "NVDA:Nvidia", "reason": why}],
     }
+
+
+def test_excluded_lane_records_no_outcome_for_a_host_ticker(monkeypatch):
+    report, _fields, _fake = _host(
+        monkeypatch, "NVDA:Nvidia", config={"EXCLUDE_SOURCES": "yahoo_finance"},
+    )
+
+    assert "yahoo_finance" not in report.source_status
+
+
+def test_missing_helper_with_a_host_ticker_says_so_once_with_the_install_command(monkeypatch, capsys):
+    report, _fields, _fake = _host(monkeypatch, "NVDA:Nvidia,MSFT:Microsoft", available=False)
+
+    outcome = report.source_status["yahoo_finance"]
+    assert outcome.state == health.SKIPPED_UNCONFIGURED
+    assert outcome.detail == (
+        f"yahoo-finance-pp-cli is not on PATH; install: {health.pp_install_cmd('yahoo-finance')}"
+    )
+    assert len(outcome.detail) <= 140
+    logged = [line for line in capsys.readouterr().err.splitlines() if "yahoo-finance-pp-cli" in line]
+    assert len(logged) == 1 and "--ticker not checked" in logged[0]
+
+
+def test_missing_helper_without_a_host_ticker_is_silent(monkeypatch, capsys):
+    monkeypatch.setattr(yahoo_finance, "_is_available", lambda: False)
+    report = _report()
+
+    yahoo_finance.attach_host_tickers(report, [])
+
+    assert "yahoo_finance" not in report.source_status
+    assert "yahoo-finance-pp-cli" not in capsys.readouterr().err
 
 
 def test_resolved_row_names_the_host_search_and_keeps_the_other_wordings():
@@ -1332,7 +1362,7 @@ def test_engine_run_uses_the_host_ticker_and_not_the_wikidata_one(monkeypatch, t
     # Wikidata still names the company, and is asked for no listing.
     assert resolved["company"] == "MainBrand Inc."
     assert resolved["company_site"] == "https://mainbrand.example/"
-    observed.company_resolver.assert_called_once_with("MainBrand", listing=False)
+    observed.company_resolver.assert_called_once_with("MainBrand", listing=False, names=True)
     assert fake.charted() == ["NVDA", "^GSPC"]
 
 
@@ -1362,7 +1392,7 @@ def test_engine_run_with_every_host_ticker_rejected_prints_nothing_and_falls_bac
         "pair": "STRS:Stripe",
         "reason": "Yahoo lists no stock for 'Stripe'; STRS is Stratus Properties Inc.",
     }]
-    observed.company_resolver.assert_called_once_with("MainBrand", listing=False)
+    observed.company_resolver.assert_called_once_with("MainBrand", listing=False, names=True)
     # No symbol search for the topic: the Yahoo backup is not a fallback here.
     assert [cmd[3] for cmd in fake.calls if cmd[1] == "autocomplete"] == ["Stripe"]
     assert fake.charted() == ["STRS"]
@@ -1377,7 +1407,7 @@ def test_engine_run_without_the_flag_resolves_as_before(monkeypatch, tmp_path):
         expected_topics=frozenset({"MainBrand"}), companies=_LISTED,
     )
 
-    observed.company_resolver.assert_called_once_with("MainBrand")
+    observed.company_resolver.assert_called_once_with("MainBrand", names=True)
     resolved = observed.reports["MainBrand"].artifacts["resolved"]
     assert (resolved["ticker"], resolved["ticker_source"]) == ("MAIN", "wikidata")
     assert "tickers" not in resolved and "ticker_rejected" not in resolved
@@ -1387,7 +1417,7 @@ def test_engine_run_without_the_flag_resolves_as_before(monkeypatch, tmp_path):
 def test_engine_run_with_an_empty_ticker_flag_resolves_as_before(monkeypatch, tmp_path):
     observed, _fake = _host_run(monkeypatch, tmp_path, " ", charts=_JUNE_CHARTS, companies=_LISTED)
 
-    observed.company_resolver.assert_called_once_with("MainBrand")
+    observed.company_resolver.assert_called_once_with("MainBrand", names=True)
     assert observed.reports["MainBrand"].artifacts["yahoo_finance"]["symbol"] == "MAIN"
 
 
@@ -1421,7 +1451,9 @@ def test_engine_run_without_the_binary_checks_no_host_ticker(monkeypatch, tmp_pa
     )
 
     report = observed.reports["MainBrand"]
-    assert "yahoo_finance" not in report.artifacts and "yahoo_finance" not in report.source_status
+    assert "yahoo_finance" not in report.artifacts
+    assert report.source_status["yahoo_finance"].state == health.SKIPPED_UNCONFIGURED
+    assert "install:" in report.source_status["yahoo_finance"].detail
     assert "ticker" not in report.artifacts["resolved"]
 
 
