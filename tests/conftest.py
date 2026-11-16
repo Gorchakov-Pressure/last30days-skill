@@ -20,6 +20,7 @@ _CONFIG_ENV_NAMES = {
     "FUN_LEVEL", "ELI5_MODE", "DEGRADED_TRANSCRIPT_THRESHOLD", "TELEGRAM_SOURCES",
     "OPENAI_MODEL_PIN", "XAI_MODEL_PIN", "OPENAI_BASE_URL", "XAI_BASE_URL",
     "OPENROUTER_BASE_URL", "XIAOHONGSHU_API_BASE",
+    "REDDIT_BROWSER_CONSENT", "REDDIT_FROM_BROWSER", "REDDIT_SESSION_OFFERED",
 }
 _CREDENTIAL_SUFFIXES = ("_API_KEY", "_TOKEN", "_KEY", "_SECRET", "_PASSWORD", "_COOKIE")
 _system_which = shutil.which
@@ -87,7 +88,7 @@ def _isolated_config(tmp_path_factory, monkeypatch):
     ``backends._xurl_finding`` calls ``stored_auth_status()`` directly, so a
     stubbed ``has_stored_auth`` still reads a developer's real store. Tests
     that need a populated store write one under the redirected home."""
-    from lib import env
+    from lib import agentcookie, env
 
     home = tmp_path_factory.mktemp("home")
     config_dir = _isolate_environment(monkeypatch, home)
@@ -95,6 +96,11 @@ def _isolated_config(tmp_path_factory, monkeypatch):
     monkeypatch.setattr(env, "_config_override", str(config_dir))
     monkeypatch.setattr(env, "CONFIG_DIR", config_dir)
     monkeypatch.setattr(env, "CONFIG_FILE", config_dir / ".env")
+    # The sidecar role path is captured at import; keep every test on its own
+    # synthetic home even when admission starts consulting that role file.
+    monkeypatch.setattr(
+        agentcookie, "_DEFAULT_CONFIG_PATH", home / ".config" / "agentcookie" / "config.json"
+    )
 
 
 @pytest.fixture(autouse=True)
@@ -117,6 +123,51 @@ def _no_arctic_network():
          mock.patch("lib.reddit_arctic.fetch_listings", return_value=[]), \
          mock.patch("lib.reddit_arctic.fetch_post_comments", return_value=[]):
         yield
+
+
+@pytest.fixture(autouse=True)
+def _no_reddit_web_floor():
+    """The Reddit lane's web floor searches the web for every run, so any
+    in-process Reddit run would reach the network. Default it to finding
+    nothing, with fresh per-run state; its own tests override this fixture."""
+    from lib import reddit_discover, web_search_keyless
+
+    reddit_discover.reset_run_state()
+    web_search_keyless.reset_rung_health()
+    with mock.patch(
+        "lib.reddit_discover.web_refs", side_effect=lambda *_a, **_k: reddit_discover.WebFloor(),
+    ):
+        yield
+    reddit_discover.reset_run_state()
+    web_search_keyless.reset_rung_health()
+
+
+@pytest.fixture(autouse=True)
+def _isolated_reddit_health():
+    """Reddit path health persists to reddit-health.json in the config dir,
+    which _isolated_config already points at this test's own tmp home, and
+    keeps per-run states in module memory. Start and end every test with
+    neither, so a skip one test records never steers another."""
+    from lib import reddit_health
+
+    reddit_health.reset_run_state()
+    yield
+    reddit_health.reset_run_state()
+
+
+@pytest.fixture(autouse=True)
+def _isolated_reddit_session(monkeypatch):
+    """The logged-in Reddit session is resolved once per run in module memory,
+    and its limiter is process-global. Start every test with no session and a
+    bucket deep enough that no test waits; pacing tests build their own."""
+    from lib import http, reddit_session
+
+    reddit_session.reset_run_state()
+    monkeypatch.setattr(
+        http, "REDDIT_SESSION_LIMITER", http.RateLimiter(http.REDDIT_SESSION_RATE, burst=10_000),
+    )
+    yield
+    reddit_session.reset_run_state()
 
 
 @pytest.fixture(autouse=True)

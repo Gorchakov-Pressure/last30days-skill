@@ -44,6 +44,10 @@ The fused unit of evidence that ranking, clustering, and rendering operate on: e
 
 The research flow available with no API keys: source data is gathered by scraping public web pages rather than authenticated APIs, and ranking falls back to local scoring instead of LLM-based reranking. This is the free tier of the Skill; lexical quality safeguards like Entity grounding matter most here, because no LLM is available to judge relevance semantically.
 
+### Reddit session layer
+
+The optional logged-in layer of free Reddit: with its own consent (`REDDIT_BROWSER_CONSENT`), the Engine reads the user's `reddit_session` browser cookie and searches reddit.com as that account, so posts, comment matches and communities come back with live scores. It runs before the Keyless path's site search and the web floor and replaces them when it serves; when it is off, expired or blocked, the Keyless path runs unchanged. It never runs on a Grok Bot host, the hosted backend or an unattended scheduled run.
+
 ### Comment-enrichment slots
 
 The small, depth-dependent budget of Reddit posts whose comments get fetched in the Keyless path (4 / 8 / 12 per subquery at quick / default / deep). Slot selection is relevance-aware and comment-first: posts that pass Entity grounding claim slots first, and within that tier the most-commented threads go first, so the budget is not spent on high-engagement posts that final ranking will demote or on near-empty threads.
@@ -58,7 +62,7 @@ A Digg story whose title names the run topic as a whole word or phrase and that 
 
 ### Patent Digest
 
-The bounded evidence block (`## Patent Digest`) the Engine prints on a company run from USPTO Patent Public Search: how many of the company's US applications were published and patents granted in the window, the names they were filed under, a few First US publications with their abstract and first claim, and more by title. Filings under a name that only extends the company's name are marked name-matched and not verified as the company's. The digest is evidence only: the Engine decides nothing about what a filing means, and the hosting model, following `references/patent-signals.md`, decides whether the report carries a Patent Secret Signals section. No digest means no section.
+The bounded evidence block (`## Patent Digest`) the Engine prints on a company run from USPTO Patent Public Search: how many of the company's US applications were published and patents granted in the window, the names they were filed under, up to 12 First US publications with their abstract and first claim, and more by title. A filer known to belong to the company, such as a subsidiary Wikidata names, is the company's, and up to three such filers each get one of the 12 so the parent's filings cannot fill every slot. Filings under a name that only extends the company's name, which the Engine could not tie to the company, are marked not verified. The digest is evidence only: the Engine decides nothing about what a filing means, and the hosting model, following `references/patent-signals.md`, decides whether the report carries a Patent Secret Signals section. No digest means no section.
 
 ### First US publication
 

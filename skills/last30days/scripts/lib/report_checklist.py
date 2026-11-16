@@ -57,10 +57,33 @@ def _has_heading(rendered: str, heading: str) -> bool:
     return f"\n{heading}\n" in rendered
 
 
+# A detailed patent entry: a linked title whose line carries its abstract or first claim.
+_PATENT_ENTRY_WITH_TEXT = re.compile(r"^- \[.*\| (?:abstract|first claim): ", re.MULTILINE)
+
+
+def _patent_digest_has_text(rendered: str) -> bool:
+    """True when the ``## Patent Digest`` block lists at least one filing with its text."""
+    marker = f"\n{_PATENT_DIGEST_HEADING}\n"
+    if marker not in rendered:
+        return False
+    block = rendered.split(marker, 1)[1].split("\n## ", 1)[0]
+    return bool(_PATENT_ENTRY_WITH_TEXT.search(block))
+
+
 def on_claude_code(environ: Mapping[str, Any] | None = None) -> bool:
     """True when the run's environment carries Claude Code's ``CLAUDECODE``."""
     source = os.environ if environ is None else environ
     return bool(str(source.get("CLAUDECODE") or "").strip())
+
+
+def claude_code_in_terminal(environ: Mapping[str, Any] | None = None) -> bool:
+    """True when Claude Code runs as the terminal app (``CLAUDE_CODE_ENTRYPOINT``
+    is ``cli``, or unset on older builds). Only the terminal redraws links as
+    ``name (url)`` while a markdown list streams; T3 Code (``sdk-ts``), the
+    desktop app and IDEs render the markdown themselves."""
+    source = os.environ if environ is None else environ
+    entrypoint = str(source.get("CLAUDE_CODE_ENTRYPOINT") or "").strip()
+    return entrypoint in ("", "cli")
 
 
 def build(
@@ -125,14 +148,23 @@ def build(
                 "Shape: `> 📊 Polymarket · Huang divorce: 9.5% by Dec 31 (down 1 pt today) · "
                 "18% by Mar 31, 2027`. They do not count toward the six quote lines."
             )
-    if on_claude_code(environ):
+    if on_claude_code(environ) and claude_code_in_terminal(environ):
         lines.append(
-            "• `CLAUDECODE` is set: no markdown lists anywhere in the reply "
-            "(KEY PATTERNS as `1\\.`, invitation lines as `•`). In a reply that holds a list, "
+            "• `CLAUDECODE` is set in the terminal: no markdown lists anywhere in the reply "
+            "(KEY PATTERNS as `1\\.`, invitation lines as `•`). Keep each block tight: "
+            "end every line of the block except its last with `\\` (the label line too) and "
+            "leave no blank line between them; a markdown viewer joins plain line breaks. "
+            "In a reply that holds a list, "
             "Claude Code prints every link as raw `name (url)` text. This holds for the whole "
             "message, not only the report: notes you add before or after it carry no bullets or "
             "numbered lines either, and it holds again whenever you show the report in a later "
             "message."
+        )
+    elif on_claude_code(environ):
+        lines.append(
+            "• `CLAUDECODE` is set in an app that renders markdown: write KEY PATTERNS as a "
+            "real numbered list and the invitation as a real bulleted list, with no blank line "
+            "between items."
         )
     if not comparison:
         # One line for both digests: the checklist stays a few lines long.
@@ -151,6 +183,17 @@ def build(
                 f"This output has a `{_PATENT_DIGEST_HEADING}` block: `patent-signals.md` "
                 "decides whether a Patent Secret Signals section is written."
             )
+            if story_paragraphs and _patent_digest_has_text(rendered):
+                # The check is owed before the section is written or left out, so it is
+                # stated here, outside the evidence block, not only in the reference.
+                patents += (
+                    " Before deciding, judge every detailed entry for something concrete a "
+                    "reader can picture, from its abstract and first claim, then web-check the "
+                    "two strongest concrete entries for coverage and a matching product before "
+                    "dropping either; send these patent checks in the Step 2 dispatch in "
+                    "addition to the three supplements. With no concrete entry, run no patent "
+                    "search."
+                )
         else:
             patents = (
                 f"This output has no `{_PATENT_DIGEST_HEADING}` block, so the report has "

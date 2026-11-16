@@ -9,6 +9,112 @@ This project uses [towncrier](https://towncrier.readthedocs.io/). Upcoming notes
 
 <!-- towncrier release notes start -->
 
+## [4.2.1] - 2026-11-16
+
+### Security
+
+- Hosted-backend runs now sanitize `--save-suffix` the same way local saves do, so traversal fragments cannot escape the save directory in that mode either ([#736](https://github.com/mvanhorn/last30days-skill/issues/736)).
+
+### Fixed
+
+- The post-run "Free fixes" hint no longer tells you to add `youtube_comments` to `INCLUDE_SOURCES` when yt-dlp (which fetches YouTube comments keyless) is installed, when the entry is already set, or when `EXCLUDE_SOURCES=youtube_comments` overrides the opt-in. Fixes #1437. ([#1437](https://github.com/mvanhorn/last30days-skill/issues/1437))
+- `doctor` no longer reports a failed grok probe as a broken credential store. When the probe raises, X reads as unconfigured with cookie guidance, and a set `X_BEARER_TOKEN` names the opt-in X API lane instead of being masked. ([#1448](https://github.com/mvanhorn/last30days-skill/issues/1448))
+- A reasoning-model reply that is valid JSON but not an object (a top-level array, `null`, or a number) now falls back to deterministic planning and ranking instead of crashing the run.
+- Comparison runs on macOS Bash 3.2 no longer fail before the engine starts when the topic contains an apostrophe or backtick; the comparison recipe now captures its topic the same way the research runbook has since [#1240](https://github.com/mvanhorn/last30days-skill/pull/1240).
+- GitHub comment enrichment now excludes automated bot accounts and ranks human responses locally by reactions instead of relying on unsupported REST sort parameters.
+- KEY PATTERNS and the follow-up suggestions no longer have a blank line between every item on Claude Code. T3 Code, the desktop app and IDEs now get real markdown lists, and the Claude Code terminal keeps its link-safe `1\.` and `•` lines, now one per row.
+- Reddit comment enrichment on hosts where the shreddit partials are blocked now reads the arctic-shift comment tree, so busy threads keep their most-upvoted replies instead of a sample of the newest 100. Thanks to @terry-li-hm, whose #1467 found and measured this.
+- The ScrapeCreators YouTube search fallback now reads the fields that endpoint returns (`publishedTime`, `viewCountInt`, `lengthSeconds`, and the `channel` object), so its videos keep their dates, view counts and channel names instead of being dropped by the date window.
+
+
+## [4.2.0] - 2026-11-15
+
+### Added
+
+- A scheduled Reddit canary (daily and manual, never on pull requests) checks the keyless web rungs and the Arctic Shift hydrator against live Reddit and tells a challenge or throttle apart from a broken parser. `evaluate_search_quality.py --reddit-coverage` counts on-topic Reddit threads per topic from a fixed topic set, on the keyless floor only, so engine versions can be compared.
+- Hosts with their own web search can hand Reddit thread URLs or ids to the engine with `--reddit-threads <file>` (schema `last30days-reddit-threads/1`, at most 50 threads). The engine reads only each thread's identity, rehydrates it through the logged-in session or Arctic Shift, holds it to the research window and the topic bar, and routes it to the subquery it matches; the research runbook collects the URLs during the pre-research web search.
+
+### Fixed
+
+- Logged-in Reddit search no longer fills a report with unrelated threads that mention the topic in a single comment. A thread whose title and body never name the topic is kept only to fill a thin result.
+
+
+## [4.1.0] - 2026-11-15
+
+### Added
+
+- Reddit can now search as your own logged-in reddit.com account, with its own consent. Setup asks once, right after the X cookie question whatever the answer (returning users are asked once too, never on a Grok Bot host), and `setup --reddit-session` finds the browser that holds your `reddit_session` cookie without saving it. Logged in, Reddit search returns more threads, comment matches and communities with live scores; the free keyless chain stays the fallback when the session is off, expired or blocked. Over-18 posts and private or quarantined communities you did not name are dropped, scheduled runs skip the session unless you opt in, and `REDDIT_BROWSER_CONSENT=false` turns it off. See CONFIGURATION.md, "Logged-in Reddit session".
+
+
+## [4.0.6] - 2026-11-15
+
+### Fixed
+
+- Reddit works again without a login or key now that Reddit's site search returns 403. A keyless web-search floor (Brave, then DuckDuckGo, then Startpage) finds threads, and the Arctic Shift archive fills in their scores and comments. A score from a post under 36 hours old shows as "score pending" instead of counting as zero. A thread found by several layers merges into one item. Report quotes include only Reddit comments that name the topic. A path that returns 403 is skipped for 6 hours. Each run reports which path served Reddit, and `doctor` shows one row per Reddit path.
+
+
+## [4.0.5] - 2026-11-15
+
+### Fixed
+
+- X keyword searches through the bird client now read X's Top tab, so busy topics return the month's most-engaged posts instead of the last few minutes of zero-engagement ones. ([#1465](https://github.com/mvanhorn/last30days-skill/issues/1465))
+
+
+## [4.0.4] - 2026-11-15
+
+### Fixed
+
+- Claude Code KEY PATTERNS and invitation lines no longer collapse into one paragraph in markdown renderers such as T3 Code and the desktop and mobile apps; the skill now puts a blank line between them. ([#1463](https://github.com/mvanhorn/last30days-skill/issues/1463))
+
+
+## [4.0.3] - 2026-11-15
+
+### Fixed
+
+- Techmeme now reads enough result pages to fill the depth cap (16 headlines by default, 30 at deep) instead of stopping at Techmeme's first 10, when the installed `techmeme-pp-cli` supports `search --pages`; older helpers still read one page. ([#1460](https://github.com/mvanhorn/last30days-skill/issues/1460))
+- Setup now upgrades the Techmeme helper to 2026.11.1, the first release that reads past Techmeme's first 10 results. ([#1461](https://github.com/mvanhorn/last30days-skill/issues/1461))
+
+
+## [4.0.2] - 2026-11-15
+
+### Fixed
+
+- Company resolution no longer gets rate-limited by Wikidata when several reports or a comparison run at once, so those runs keep their Jobs section. The Wikidata request now sends a User-Agent with a contact URL, as Wikimedia asks. ([#1447](https://github.com/mvanhorn/last30days-skill/issues/1447))
+- Polymarket odds now follow Polymarket's own display rule: the midpoint only for a tight book (bid and ask within $0.10), otherwise the last trade, and a market with neither is left out. A mutually exclusive range set whose prices still sum well over 100% no longer prints an impossible odds line, so an empty-book range can't top the list at 44%. ([#1450](https://github.com/mvanhorn/last30days-skill/issues/1450))
+- The top clusters in the chat report are now story-diverse: one story takes at most 3 of the top 8, near-duplicate clusters are pushed down, each plan subquery with on-topic evidence gets a slot, and `--drill N` still opens the cluster shown as N. ([#1451](https://github.com/mvanhorn/last30days-skill/issues/1451))
+- Top voices in the footer and `## Stats` now rank @handles by engagement (best 3 posts each) and drop near-zero-engagement accounts, so a prolific headline account no longer outranks the subject's own posts. ([#1452](https://github.com/mvanhorn/last30days-skill/issues/1452))
+- YouTube transcript health is judged against the transcript target, and a YouTube bot check now gets its own message (route yt-dlp through `LAST30DAYS_YOUTUBE_SSH_HOST` or add a ScrapeCreators key) instead of advice to upgrade yt-dlp. Host plans no longer gain Trustpilot when it cannot run this session. Techmeme searches are scoped to the run window, and setup upgrades a techmeme-pp-cli older than 2026.9.1. ([#1453](https://github.com/mvanhorn/last30days-skill/issues/1453))
+- Hiring Signals no longer lists the same roles under every theme: themes match a role's title, department, and only the description text other roles on the board do not share, each role is an example under one theme at most, and generic keywords such as "growth", "design" and "platform" no longer theme unrelated roles. ([#1454](https://github.com/mvanhorn/last30days-skill/issues/1454))
+
+
+## [4.0.1] - 2026-11-15
+
+### Fixed
+
+- A company that lists many regional sites on Wikidata with none preferred, such as Apple, now resolves to the host most of them share, so its own job board is read without web search. Hiring themes match keywords as whole words, so retail and training roles no longer fill the AI theme. ([#1445](https://github.com/mvanhorn/last30days-skill/issues/1445))
+
+
+## [4.0.0] - 2026-11-15
+
+### Added
+
+- The jobs lane reads company-run job boards through a registry: Amazon's and Apple's own boards, plus Eightfold boards for Microsoft, Qualcomm and Netflix. Sites it can't read automatically, such as Tesla's, get a footer line saying so and no requests. ([#1428](https://github.com/mvanhorn/last30days-skill/issues/1428))
+- The jobs lane detects the hiring platform a company's careers page runs on (Oracle Recruiting Cloud, Jibe, Phenom, TalentBrew, Eightfold on any host, or a linked Workday board) and reads its public listing, and reads Google's and IBM's job sites, so a company run now gets a Jobs Digest for Oracle, JPMorgan, Dell, AMD, Adobe, Cisco, Disney, IBM, Salesforce, Intel and Google. A careers site with no readable listing but a job sitemap (SAP, Uber, Walmart) gets a titles-only digest. Set `LAST30DAYS_JOBS_RESPECT_ROBOTS=1` to skip any listing a site's robots.txt disallows. ([#1431](https://github.com/mvanhorn/last30days-skill/issues/1431))
+
+### Changed
+
+- Require `AGENTCOOKIE=on` or affirmative `BROWSER_CONSENT` before reading X cookies through the agentcookie sidecar. Eligible Linux, Mac mini, and Darwin sink hosts no longer enable sidecar reads from binary presence alone. Explicit refusals still win, and direct `AUTH_TOKEN`+`CT0` credentials remain usable. Sidecar-only users can set `AGENTCOOKIE=on` with `BROWSER_CONSENT` and `FROM_BROWSER` absent. Doctor shows this opt-in hint for an installed, unadmitted sidecar and refreshes cached advice when `AGENTCOOKIE` changes. Thanks to @vincentkoc (#1365). ([#1365](https://github.com/mvanhorn/last30days-skill/issues/1365))
+- Patent Secret Signals now appear only for a filing that is out of character for the company or describes a product it has not shipped, announced or had reported. A tie to a story in the report no longer qualifies a filing, filings listed by title only are never signals, and the section is one short paragraph with no counts sentence or closing disclaimer. The patent digest and footer no longer say "confirmed" or "name-matched": a company's own holding, licensing and numbered entities count as the company, and other filers with the company's name are marked "not verified". ([#1427](https://github.com/mvanhorn/last30days-skill/issues/1427))
+- Patent and jobs Secret Signals are written as two plain-words sentences: what the filing or role is, then what it could mean. Patent entries print fuller abstract and claim text and give subsidiaries a slot. The two strongest candidates are checked on the web before a section is written or left out. ([#1428](https://github.com/mvanhorn/last30days-skill/issues/1428))
+- Big company boards are read concurrently up to 7,000 rows. When a platform reader fails, the lane falls to the site's job sitemap and then the web tier, and the Jobs footer says which happened. The footer for a site that can't be read now gives the reason. ([#1431](https://github.com/mvanhorn/last30days-skill/issues/1431))
+
+### Fixed
+
+- Large patent filers get abstract and first-claim text again: the patent lane has 90 seconds and keeps reading after one failed document. `--as-of` set to today is now a live run. An outdated Digg helper is reported with its upgrade command instead of failing on `unknown flag: --topic`, and a `--ticker` run with no stock helper says so with the install command. Setup installs from `@mvanhorn/printing-press-library@0.1.27` and upgrades a Digg helper older than 2026.10.1, and doctor reports it. Grok Bot post-write checks may no longer remove a required report section or a verbatim quote. ([#1427](https://github.com/mvanhorn/last30days-skill/issues/1427))
+- A response body cut off mid-read no longer crashes a run. A company's official site is kept when Yahoo Finance resolves the company. A site that fails on one host form is retried on its www or bare form. A job board that does not answer is reported as a retryable timeout, not as unreadable. ([#1428](https://github.com/mvanhorn/last30days-skill/issues/1428))
+- A stale or older `LAST30DAYS_PLANNER_MODEL` / `LAST30DAYS_RERANK_MODEL` pin on the Gemini provider now warns and falls back to the default model instead of failing the run, and Gemini 4 and newer models are accepted. Thanks to @SajjadPSavoji (#1430). ([#1429](https://github.com/mvanhorn/last30days-skill/issues/1429))
+
+
 ## [3.39.0] - 2026-11-13
 
 ### Added

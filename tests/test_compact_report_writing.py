@@ -20,7 +20,7 @@ import last30days as cli
 from lib import html_render, render, report_checklist, schema
 
 
-def _item(source, item_id, *, title="A post about the topic", body="", url=None,
+def _item(source, item_id, *, title="A post about Kanye West", body="", url=None,
           author=None, container=None, engagement=None, metadata=None,
           published_at="2026-11-05", snippet=""):
     return schema.SourceItem(
@@ -115,7 +115,7 @@ def _report(candidates, *, clusters=None, extra_items=(), x_handle="kanyewest",
 
 def _reddit_thread(index, comments):
     return _item(
-        "reddit", f"r{index}", title=f"Reddit thread number {index}",
+        "reddit", f"r{index}", title=f"Kanye West Reddit thread number {index}",
         url=f"https://www.reddit.com/r/hiphopheads/comments/t{index}/",
         container="hiphopheads", engagement={"score": 500, "num_comments": 40},
         metadata={"top_comments": comments},
@@ -444,11 +444,14 @@ def _args(emit="compact", save_dir=None, output=None, **extra):
 
 
 def _stdout(report, monkeypatch, *, claude_code, emit="compact", save_dir=None, entity_reports=None,
-            no_checklist=False, **extra):
+            no_checklist=False, entrypoint=None, **extra):
     monkeypatch.delenv("CLAUDECODE", raising=False)
+    monkeypatch.delenv("CLAUDE_CODE_ENTRYPOINT", raising=False)
     monkeypatch.delenv("LAST30DAYS_NO_REPORT_CHECKLIST", raising=False)
     if claude_code:
         monkeypatch.setenv("CLAUDECODE", "1")
+    if entrypoint is not None:
+        monkeypatch.setenv("CLAUDE_CODE_ENTRYPOINT", entrypoint)
     if no_checklist:
         monkeypatch.setenv("LAST30DAYS_NO_REPORT_CHECKLIST", "1")
     out = io.StringIO()
@@ -689,9 +692,38 @@ def test_checklist_says_copy_through_the_count_and_that_six_is_a_ceiling(monkeyp
     assert "a ceiling, not a target" in block
 
 
-def test_checklist_names_the_marker_for_key_patterns_and_for_the_invitation(monkeypatch):
-    block = _checklist(_stdout(_mixed_pool_report(), monkeypatch, claude_code=True))
+@pytest.mark.parametrize("entrypoint", [None, "cli"])
+def test_terminal_checklist_keeps_pseudo_lists_tight_with_hard_breaks(monkeypatch, entrypoint):
+    # cmux and other terminals report `cli`; older Claude Code builds set no entrypoint.
+    block = _checklist(_stdout(_mixed_pool_report(), monkeypatch, claude_code=True,
+                               entrypoint=entrypoint))
     assert "KEY PATTERNS as `1\\.`, invitation lines as `•`" in block
+    # A trailing backslash is a hard line break: the terminal draws each item on
+    # its own row, and a markdown viewer (Remote Control, a phone) keeps them apart.
+    assert "end every line of the block except its last with `\\`" in block
+    assert "label line too" in block
+    assert "no blank line between" in block
+    assert "with a blank line between each" not in block
+
+
+@pytest.mark.parametrize("entrypoint", ["sdk-ts", "claude-desktop", "claude-vscode"])
+def test_app_checklist_asks_for_real_tight_lists(monkeypatch, entrypoint):
+    # T3 Code reports `sdk-ts`; apps render markdown themselves, so the terminal's
+    # streaming link redraw never happens there and real lists render cleanly.
+    block = _checklist(_stdout(_mixed_pool_report(), monkeypatch, claude_code=True,
+                               entrypoint=entrypoint))
+    assert "real numbered list" in block
+    assert "no blank line between items" in block
+    assert "`1\\.`" not in block
+    assert "no markdown lists anywhere" not in block
+    assert "raw `name (url)` text" not in block
+
+
+def test_no_list_line_without_claude_code_even_with_an_entrypoint(monkeypatch):
+    block = _checklist(_stdout(_mixed_pool_report(), monkeypatch, claude_code=False,
+                               entrypoint="sdk-ts"))
+    for needle in ("markdown list", "real numbered list", "`1\\.`", "`•`"):
+        assert needle not in block
 
 
 def test_posts_entry_ends_its_copyable_part_at_the_count():
@@ -782,7 +814,7 @@ def test_quote_text_carries_no_raw_url():
 
 def _thread(source, index, scores, *, container=None):
     return _item(
-        source, f"{source}{index}", title=f"{source} item {index}",
+        source, f"{source}{index}", title=f"Kanye West {source} item {index}",
         url=f"https://example.com/{source}/{index}", container=container,
         metadata={"top_comments": [
             {"author": f"{source}{index}rank{rank}", "score": score,
@@ -877,7 +909,7 @@ def test_pool_covers_shown_clusters_before_other_items_within_the_cap():
     assert authors[:8] == [f"reddit{index}rank1" for index in range(1, 9)]
     assert authors[8:32] == [f"tiktok{index}rank1" for index in range(9, 33)]
     assert authors[32:] == [f"reddit{index}rank2" for index in range(1, 9)]
-    assert all(' — re: "tiktok item' in line for line in entries[8:32])
+    assert all(' — re: "Kanye West tiktok item' in line for line in entries[8:32])
 
 
 @pytest.mark.parametrize(
@@ -1017,7 +1049,7 @@ def test_second_comments_are_shared_round_by_round_once_top_comments_are_in():
 
 def _comments_item(source, index, comments, *, author=None, container=None):
     return _item(
-        source, f"{source}{index}", title=f"{source} item {index}",
+        source, f"{source}{index}", title=f"Kanye West {source} item {index}",
         url=f"https://example.com/{source}/{index}", author=author, container=container,
         metadata={"top_comments": comments},
     )
