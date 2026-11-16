@@ -1185,3 +1185,32 @@ class TestSummaryWording:
     def test_conditional_summary_is_the_conditional_wording(self):
         res = backends.resolve("reddit", {"SCRAPECREATORS_API_KEY": "dummy-key"})
         assert res.summary == res.conditional
+
+
+def test_grok_missing_backend_reuses_manual_health_policy():
+    with _stack(_x_env()):
+        finding = backends._probe_grok({})
+    assert finding.status == health.MISSING
+    assert finding.prescription == health._prescription("grok", "install")[0]
+    with _stack(_x_env(grok_installed=True)):
+        finding = backends._probe_grok({})
+    assert finding.prescription == "grok login"
+    with _stack(_x_env(grok_off_path="/example/bin/grok")):
+        finding = backends._probe_grok({})
+    assert "PATH" in finding.prescription
+    assert "manually" not in finding.prescription
+
+
+def test_doctor_keeps_missing_pinned_grok_unconfigured_with_manual_guidance():
+    from lib import doctor
+
+    with _stack(_x_env()):
+        record = doctor._chained_record("x", {"LAST30DAYS_X_BACKEND": "grok"})
+    assert record["pinned"]
+    assert record["status"] == "unconfigured"
+    assert record["tier"] == doctor.TIER_OFF
+    assert record["active_backend"] is None
+    assert record["fix"] == health._prescription("grok", "install")[0]
+    grok = next(finding for finding in record["backends"] if finding["name"] == "grok")
+    assert grok["status"] == health.MISSING
+    assert grok["fix"] == record["fix"]

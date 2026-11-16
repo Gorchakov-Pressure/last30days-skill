@@ -85,11 +85,17 @@ class TestCompletenessLint:
         for key, entry in prescriptions.REGISTRY.items():
             assert entry.cause.strip(), f"{key}: empty cause"
             assert entry.fix_nl.strip(), f"{key}: empty natural-language fix"
-            assert entry.fix_cli.strip(), f"{key}: empty CLI fix"
+            if key == ("x", "grok_cli_missing"):
+                assert entry.fix_cli == ""
+                assert entry.fix_nl == health._prescription("grok", "install")[0]
+            else:
+                assert entry.fix_cli.strip(), f"{key}: empty CLI fix"
 
     def test_every_cli_form_starts_with_a_runnable_token(self):
         for key, entry in prescriptions.REGISTRY.items():
             for cli in (entry.fix_cli, *entry.alt_cli):
+                if key == ("x", "grok_cli_missing") and cli == "":
+                    continue
                 assert RUNNABLE.match(cli), f"{key}: not runnable: {cli!r}"
 
     def test_nl_fix_never_duplicates_the_cli_string_verbatim(self):

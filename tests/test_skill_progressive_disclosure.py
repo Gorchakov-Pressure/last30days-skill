@@ -190,3 +190,16 @@ def test_packaged_runtime_resolves_from_a_path_with_spaces_outside_cwd(packaged_
     )
     assert result.returncode == 0, result.stderr
     assert result.stdout == str(tmp_path / "saved research")
+
+
+def test_bundled_inventory_names_regular_files_and_retains_siblings():
+    inventory = next(line for line in root_text().splitlines() if line.startswith("**Bundled scripts:**"))
+    paths = re.findall(r"`([^`]+)`", inventory)
+    assert paths == ["scripts/last30days.py", "scripts/lib/health.py", "scripts/lib/vendor/bird-search/bird-search.mjs"]
+    for name in paths:
+        path = SKILL_ROOT / name
+        assert path.is_file() and not path.is_symlink(), name
+    assert "sibling modules" in inventory and "siblings/license (MIT)" in inventory
+    assert "Retain the entire bundle" in inventory
+    assert (SKILL_ROOT / "scripts/lib/vendor/bird-search/LICENSE").is_file()
+    assert len((SKILL_ROOT / "SKILL.md").read_bytes()) <= 32_000

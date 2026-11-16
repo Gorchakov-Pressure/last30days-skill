@@ -1,0 +1,1 @@
+Replace Grok CLI install/reinstall commands with manual, pinned-release guidance requiring operator consent and independently verified authenticity; stop when verification is unavailable. Keep login and off-PATH repairs distinct. Fix bundled-file references and document guarded Hermes installation without bypasses.
